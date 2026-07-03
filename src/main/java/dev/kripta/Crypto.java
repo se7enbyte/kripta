@@ -43,8 +43,7 @@ public final class Crypto {
         RNG.nextBytes(salt);
         RNG.nextBytes(nonce);
         byte[] header = buildHeader(bound, salt, nonce);
-        byte[] key = deriveKey(passphrase, salt, bound ? pepper : null,
-                MEM_KIB, ITERATIONS, PARALLELISM);
+        byte[] key = deriveKey(passphrase, salt, bound ? pepper : null);
         try {
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
@@ -77,8 +76,12 @@ public final class Crypto {
         byte[] nonce = Arrays.copyOfRange(container, 32, 44);
         byte[] ct = Arrays.copyOfRange(container, HEADER_LEN, container.length);
 
-        byte[] key = deriveKey(passphrase, salt, bound ? pepper : null,
-                MEM_KIB, ITERATIONS, PARALLELISM);
+        // KDF parametreleri deriveKey icindeki DERLEME SABITLERINDEN gelir; basliktaki
+        // mem/iter/par AAD ile dogrulanir ama anahtar turetiminde ASLA kullanilmaz.
+        // Aksi halde kurcalanmis bir baslik (devasa mem) OutOfMemoryError/DoS'a yol
+        // acar ve AAD dogrulamasi calismadan patlardi. Bu imza kasitli olarak baslik
+        // degeri kabul etmez.
+        byte[] key = deriveKey(passphrase, salt, bound ? pepper : null);
         try {
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"),
@@ -114,14 +117,13 @@ public final class Crypto {
         return h;
     }
 
-    private static byte[] deriveKey(char[] passphrase, byte[] salt, byte[] pepper,
-                                    int memKib, int iters, int par) {
+    private static byte[] deriveKey(char[] passphrase, byte[] salt, byte[] pepper) {
         Argon2Parameters.Builder pb = new Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
                 .withVersion(Argon2Parameters.ARGON2_VERSION_13)
                 .withSalt(salt)
-                .withMemoryAsKB(memKib)
-                .withIterations(iters)
-                .withParallelism(par);
+                .withMemoryAsKB(MEM_KIB)
+                .withIterations(ITERATIONS)
+                .withParallelism(PARALLELISM);
         if (pepper != null && pepper.length > 0) pb.withSecret(pepper);
         Argon2BytesGenerator gen = new Argon2BytesGenerator();
         gen.init(pb.build());
