@@ -1,82 +1,100 @@
 package dev.kripta;
 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.jar.JarInputStream;
 import java.util.jar.JarEntry;
-import java.io.ByteArrayOutputStream;
+import java.util.jar.JarInputStream;
 
 /**
- * Sifreli bir JAR'i BELLEKTE cozup calistirir. Cozulmus baytlar diske
- * hicbir zaman yazilmaz; siniflar bellekten dogrudan yuklenir.
+ * Sifreli JAR'i BELLEKTE cozup calistirir; cozulmus baytlar diske yazilmaz.
  *
- * Kullanim:
- *   java dev.kripta.Loader <sifreli.jar.enc> <AnaSinif> --key <ANAHTAR> [prog args...]
- *
- * Not: Anahtar burada komut satirindan geliyor. Gercek bir pakette anahtar
- * loader icine gomulu olur -> iste tam da bu yuzden "kirilamaz" degildir:
- * anahtar dagitilan kodun icindedir.
+ * Ek katman (per-class efemer sifreleme): JAR bellekte cozuldukten sonra her
+ * .class ayri bir efemer AES-GCM anahtariyla yeniden sifrelenir; sinif yalnizca
+ * findClass ile ilk yuklendigi an cozulur. Boylece tum program ayni anda acik
+ * durmaz -> naif bellek taramasi zorlasir. (Efemer anahtar da bellekte oldugu
+ * icin bu kararli bir tersine muhendisi durdurmaz; bkz. README.)
  */
 public final class Loader {
+    private Loader() {}
 
-    public static void main(String[] args) throws Exception {
-        if (args.length < 4) {
-            System.err.println("Kullanim: Loader <sifreli.jar.enc> <AnaSinif> --key <ANAHTAR> [args...]");
-            System.exit(1);
-        }
-        Path encJar = Path.of(args[0]);
-        String mainClass = args[1];
-        byte[] key = null;
-        int progArgsStart = args.length;
-        for (int i = 2; i < args.length; i++) {
-            if (args[i].equals("--key") && i + 1 < args.length) {
-                key = args[i + 1].getBytes(StandardCharsets.UTF_8);
-                progArgsStart = i + 2;
-                break;
-            }
-        }
-        if (key == null) throw new IllegalArgumentException("--key gerekli");
+    public static void run(String encPath, String mainClass, char[] passphrase,
+                           String[] progArgs) throws Exception {
+        Guard.assertNoDebugger();
 
-        // 1) Sifreli metni oku ve bellekte coz
-        String enc = Files.readString(encJar, StandardCharsets.UTF_8);
-        byte[] jarBytes = Codec.decode(enc, key);
+        byte[] container = Files.readAllBytes(Path.of(encPath));
+        byte[] pepper = Crypto.isBound(container) ? MachineKey.fingerprint() : null;
+        byte[] jarBytes = Crypto.decrypt(container, passphrase, pepper);
 
-        // 2) JAR icindeki tum siniflari bellege cikar
-        Map<String, byte[]> classes = new HashMap<>();
+        // Efemer anahtar: bu calisma icin rastgele, sadece bellekte
+        KeyGenerator kg = KeyGenerator.getInstance("AES");
+        kg.init(256);
+        SecretKey ephemeral = kg.generateKey();
+        SecureRandom rng = new SecureRandom();
+
+        Map<String, byte[]> sealed = new HashMap<>();   // sinif adi -> nonce||ct
         try (JarInputStream jis = new JarInputStream(new ByteArrayInputStream(jarBytes))) {
             JarEntry e;
             while ((e = jis.getNextJarEntry()) != null) {
-                if (e.getName().endsWith(".class")) {
-                    String name = e.getName().replace('/', '.').replaceAll("\\.class$", "");
-                    classes.put(name, readAll(jis));
-                }
+                if (!e.getName().endsWith(".class")) continue;
+                String name = e.getName().replace('/', '.').replaceAll("\\.class$", "");
+                byte[] raw = readAll(jis);
+                sealed.put(name, seal(raw, ephemeral, rng));
+                java.util.Arrays.fill(raw, (byte) 0);
             }
         }
+        java.util.Arrays.fill(jarBytes, (byte) 0);
 
-        // 3) Bellekten yukleyen ClassLoader
         ClassLoader memLoader = new ClassLoader(Loader.class.getClassLoader()) {
             @Override
             protected Class<?> findClass(String name) throws ClassNotFoundException {
-                byte[] b = classes.get(name);
-                if (b == null) throw new ClassNotFoundException(name);
-                return defineClass(name, b, 0, b.length);
+                byte[] blob = sealed.get(name);
+                if (blob == null) throw new ClassNotFoundException(name);
+                try {
+                    byte[] b = unseal(blob, ephemeral);
+                    return defineClass(name, b, 0, b.length);
+                } catch (Exception ex) {
+                    throw new ClassNotFoundException(name, ex);
+                }
             }
         };
 
-        // 4) Ana sinifi calistir
         Class<?> cls = Class.forName(mainClass, true, memLoader);
         Method main = cls.getMethod("main", String[].class);
-        String[] progArgs = new String[Math.max(0, args.length - progArgsStart)];
-        System.arraycopy(args, progArgsStart, progArgs, 0, progArgs.length);
         main.invoke(null, (Object) progArgs);
     }
 
-    private static byte[] readAll(java.io.InputStream in) throws Exception {
+    private static byte[] seal(byte[] data, SecretKey key, SecureRandom rng) throws Exception {
+        byte[] nonce = new byte[12];
+        rng.nextBytes(nonce);
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+        c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+        byte[] ct = c.doFinal(data);
+        byte[] out = new byte[12 + ct.length];
+        System.arraycopy(nonce, 0, out, 0, 12);
+        System.arraycopy(ct, 0, out, 12, ct.length);
+        return out;
+    }
+
+    private static byte[] unseal(byte[] blob, SecretKey key) throws Exception {
+        byte[] nonce = java.util.Arrays.copyOfRange(blob, 0, 12);
+        byte[] ct = java.util.Arrays.copyOfRange(blob, 12, blob.length);
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+        c.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+        return c.doFinal(ct);
+    }
+
+    private static byte[] readAll(InputStream in) throws Exception {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         byte[] buf = new byte[8192];
         int n;
