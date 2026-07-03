@@ -1,0 +1,6 @@
+out/
+demo/classes/
+demo/*.jar
+demo/*.enc
+lib/
+*.enc
