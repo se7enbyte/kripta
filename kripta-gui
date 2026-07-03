@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# kripta masaustu arayuzunu baslatir. Ilk kullanimda otomatik derler.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
+if ! ls lib/bcprov-jdk18on-*.jar >/dev/null 2>&1; then
+  ./setup.sh
+fi
+if [ ! -f out/dev/kripta/Gui.class ]; then
+  echo ">> İlk derleme..." >&2
+  mkdir -p out
+  javac -cp "lib/*" -d out $(find src -name '*.java')
+fi
+
+exec java -cp "out:lib/*" dev.kripta.Gui

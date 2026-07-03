@@ -58,6 +58,21 @@ ikisini birleştirir (defense in depth).
 ./kripta run app.enc com.ornek.Main arg1 arg2
 ```
 
+### Masaüstü uygulaması
+
+Koyu temalı masaüstü arayüzünü başlatmak için:
+
+```bash
+./kripta-gui
+```
+
+Arayüz; dosya sürükle-bırak, şifreleme, çözme, makineye mühürleme ve şifreli
+JAR çalıştırma işlemlerini destekler. Platforma özel kurulum paketi üretmek için
+JDK 21+ ile `./package.sh` çalıştırılır; çıktı `dist/` klasörüne yazılır.
+
+GitHub Actions, `v*` etiketi gönderildiğinde macOS, Windows ve Linux paketlerini
+oluşturup GitHub Releases'a ekler.
+
 Script/CI için parolayı `KRIPTA_KEY` ortam değişkeninden verebilirsin (argv'de
 parola geçirme — `ps` çıktısında görünür).
 
@@ -134,6 +149,13 @@ can't be cracked. The strongest setup combines both (defense in depth).
 # run an encrypted JAR in memory, never touching disk
 ./kripta run app.enc com.example.Main arg1 arg2
 ```
+
+### Desktop app
+
+Launch the dark desktop interface with `./kripta-gui`. It supports drag and
+drop, encryption, decryption, machine sealing, and encrypted JAR execution.
+Run `./package.sh` with JDK 21+ to create a native package under `dist/`.
+Tags matching `v*` trigger macOS, Windows, and Linux GitHub Release builds.
 
 For scripts/CI, provide the passphrase via the `KRIPTA_KEY` environment variable
 (never pass it in argv — it shows up in `ps`).

@@ -3,5 +3,7 @@ demo/classes/
 demo/*.jar
 demo/*.enc
 lib/
+dist/
+package-input/
 *.enc
 .superpowers/
