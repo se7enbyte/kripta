@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# kripta calistirici. Ilk kullanimda otomatik derler.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
+if ! ls lib/bcprov-jdk18on-*.jar >/dev/null 2>&1; then
+  ./setup.sh
+fi
+if [ ! -d out ] || [ -z "$(ls -A out 2>/dev/null)" ]; then
+  echo ">> İlk derleme..." >&2
+  mkdir -p out
+  javac -cp "lib/*" -d out $(find src -name '*.java')
+fi
+
+exec java -cp "out:lib/*" dev.kripta.Kripta "$@"
