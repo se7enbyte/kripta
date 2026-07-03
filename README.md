@@ -32,6 +32,19 @@ komut satırı uygulaması.
 En kolay yol, projenin [Releases](https://github.com/se7enbyte/kripta/releases)
 sayfasından işletim sistemine uygun paketi indirmektir.
 
+#### Windows
+
+`kripta-2.0.1.msi` dosyasını çalıştırıp kurulumu tamamla. Uygulama kurulum
+bitince otomatik açılmaz; **Başlat Menüsü → kripta** veya masaüstündeki
+**kripta** kısayolundan başlatılır. Kurulum kullanıcı hesabına yapılır ve Java'yı
+ayrıca yüklemek gerekmez.
+
+Uygulama açılmazsa hata kaydı şu konuma yazılır:
+
+```text
+%USERPROFILE%\.kripta\kripta.log
+```
+
 Kaynak koddan çalıştırmak için JDK 21 veya üzeri gerekir:
 
 ```bash
@@ -136,8 +149,8 @@ MSI paketi GitHub Actions'ın Windows runner'ında oluşturulur.
 paketlerini üretip GitHub Releases'a ekler:
 
 ```bash
-git tag v2.0.0
-git push origin v2.0.0
+git tag v2.0.1
+git push origin v2.0.1
 ```
 
 ## Proje yapısı

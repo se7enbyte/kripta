@@ -19,7 +19,7 @@ esac
 jpackage \
   --type "$TYPE" \
   --name kripta \
-  --app-version 2.0.0 \
+  --app-version 2.0.1 \
   --vendor kripta \
   --description "AES-256-GCM ve Argon2id dosya sifreleme" \
   --input package-input \

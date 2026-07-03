@@ -11,6 +11,7 @@ import java.awt.dnd.*;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -49,11 +50,38 @@ public final class Gui extends JFrame {
     private Path input;
 
     public static void main(String[] args) {
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> logStartupError(error));
         SwingUtilities.invokeLater(() -> {
-            installLookAndFeel();
-            Gui gui = new Gui();
-            gui.setVisible(true);
+            try {
+                installLookAndFeel();
+                Gui gui = new Gui();
+                gui.setVisible(true);
+            } catch (Throwable error) {
+                logStartupError(error);
+                JOptionPane.showMessageDialog(null,
+                        "kripta başlatılamadı. Hata kaydı: " + startupLog(),
+                        "kripta — Başlangıç hatası", JOptionPane.ERROR_MESSAGE);
+            }
         });
+    }
+
+    private static Path startupLog() {
+        return Path.of(System.getProperty("user.home"), ".kripta", "kripta.log");
+    }
+
+    private static void logStartupError(Throwable error) {
+        try {
+            Path log = startupLog();
+            Files.createDirectories(log.getParent());
+            String message = "\n[" + java.time.LocalDateTime.now() + "] " + error + "\n";
+            Files.writeString(log, message, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            try (java.io.PrintWriter out = new java.io.PrintWriter(
+                    Files.newBufferedWriter(log, StandardOpenOption.CREATE, StandardOpenOption.APPEND))) {
+                error.printStackTrace(out);
+            }
+        } catch (Exception ignored) {
+            error.printStackTrace();
+        }
     }
 
     private Gui() {

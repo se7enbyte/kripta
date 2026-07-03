@@ -14,7 +14,7 @@ import java.util.Arrays;
  */
 public final class Kripta {
 
-    static final String VERSION = "2.0.0";
+    static final String VERSION = "2.0.1";
     // ANSI (terminal destekliyorsa)
     static final boolean COLOR = System.console() != null && System.getenv("NO_COLOR") == null;
     static String ok(String s)  { return COLOR ? "[32m" + s + "[0m" : s; }
