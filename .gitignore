@@ -4,3 +4,4 @@ demo/*.jar
 demo/*.enc
 lib/
 *.enc
+.superpowers/
