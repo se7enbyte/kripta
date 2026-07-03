@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
 # kripta'yi derler, testleri kosar ve tam bir demo calistirir.
-set -e
+set -euo pipefail
 cd "$(dirname "$0")"
 
+# Bagimlilik yoksa indir
+if ! ls lib/bcprov-jdk18on-*.jar >/dev/null 2>&1; then
+  ./setup.sh
+fi
+
+CP="out:lib/*"
+
 echo ">> Derleniyor..."
-javac -d out $(find src -name '*.java')
+rm -rf out && mkdir -p out
+javac -cp "lib/*" -d out $(find src -name '*.java')
 
 echo ">> Testler..."
-java -cp out dev.kripta.SelfTest
+java -cp "$CP" dev.kripta.SelfTest
 
 echo ">> Demo: ornek uygulama -> JAR -> sifrele -> bellekte calistir"
-KEY="${1:-M0untainSecret!42}"
+export KRIPTA_KEY="${1:-M0untainSecret!42}"
 mkdir -p demo/classes
 javac -d demo/classes demo/app/SecretApp.java
 jar cfe demo/secret.jar SecretApp -C demo/classes .
-
-java -cp out dev.kripta.Kripta encrypt demo/secret.jar demo/secret.jar.enc --key "$KEY"
+java -cp "$CP" dev.kripta.Kripta encrypt demo/secret.jar demo/secret.jar.enc --no-bind
 echo ">> Sifreliyken calistiriliyor:"
-java -cp out dev.kripta.Loader demo/secret.jar.enc SecretApp --key "$KEY" Micro
+java -cp "$CP" dev.kripta.Kripta run demo/secret.jar.enc SecretApp Micro
