@@ -20,7 +20,9 @@ import java.util.List;
 public final class MachineKey {
     private MachineKey() {}
 
-    private static boolean degenerate = false;
+    // Guvenli varsayilan: fingerprint() henuz cagrilmadiysa "degenerate/bilinmiyor"
+    // kabul et. fingerprint() calisinca gercek deger (macs.isEmpty()) ile guncellenir.
+    private static boolean degenerate = true;
 
     public static byte[] fingerprint() {
         List<String> parts = new ArrayList<>();
